@@ -3,9 +3,11 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {WinToken} from "../../src/WinToken.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract WinTokenTest is Test {
     WinToken winToken;
+    address user = makeAddr("user");
 
     function setUp() public {
         winToken = new WinToken();
@@ -13,5 +15,33 @@ contract WinTokenTest is Test {
 
     function testIfWinTokenDeployerHasMintAndBurnRoleStraightAway() public view {
         assertTrue(winToken.hasMintAndBurnRole(address(this)));
+    }
+
+    function testMintMustbeMoreThanZeroRevert() public {
+        vm.expectRevert(WinToken.WinToken__MustBeMoreThanZero.selector);
+        winToken.mint(user, 0);
+    }
+
+    function testMintUserBalanceIncreases() public {
+        winToken.mint(user, 1 ether);
+        assertEq(winToken.balanceOf(user), 1 ether);
+    }
+
+    function testUserDoesNotHaveMintRole() public {
+        vm.expectPartialRevert(IAccessControl.AccessControlUnauthorizedAccount.selector);
+        vm.prank(user);
+        winToken.mint(user, 1 ether);
+    }
+
+    // burn
+
+    function testBurnMoreThanZeroRevert() public {
+        vm.expectRevert(WinToken.WinToken__MustBeMoreThanZero.selector);
+        winToken.burn(0);
+    }
+
+    function testBurnMoreThanBalanceRevert() public {
+        vm.expectRevert(WinToken.WinToken__BalanceMustExceedBurnAmount.selector);
+        winToken.burn(1 ether);
     }
 }
