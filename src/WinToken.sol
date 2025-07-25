@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: SEE LICENSE IN LICENSE
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -19,9 +19,11 @@ contract WinToken is ERC20, AccessControl, Ownable, ERC20Burnable {
         _;
     }
 
-    constructor() ERC20("WinToken", "WIN") Ownable(msg.sender) {}
+    constructor() ERC20("WinToken", "WIN") Ownable(msg.sender) {
+        grantMintAndBurnRole(msg.sender);
+    }
 
-    function grantMintAndBurnRole(address _user) external onlyOwner {
+    function grantMintAndBurnRole(address _user) public onlyOwner {
         _grantRole(MINT_AND_BURN_ROLE, _user);
     }
 
@@ -41,5 +43,9 @@ contract WinToken is ERC20, AccessControl, Ownable, ERC20Burnable {
             revert WinToken__BalanceMustExceedBurnAmount();
         }
         super.burn(_amount);
+    }
+
+    function hasMintAndBurnRole(address _account) public view returns (bool) {
+        return hasRole(MINT_AND_BURN_ROLE, _account);
     }
 }
