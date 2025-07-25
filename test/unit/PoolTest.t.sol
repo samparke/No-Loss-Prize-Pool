@@ -20,9 +20,12 @@ contract PoolTest is Test {
         vm.deal(user, STARTING_USER_BALANCE);
     }
 
-    function testDepositMintUserWinToken() public {
+    function testDepositEventEmittedAndMintUserWinToken() public {
         vm.prank(user);
+        vm.expectEmit(true, false, false, true, address(pool));
+        emit Pool.Deposit(user, DEPOSIT_AMOUNT);
         pool.deposit{value: DEPOSIT_AMOUNT}();
         assertEq(winToken.balanceOf(user), DEPOSIT_AMOUNT);
+        assertTrue(pool.getHasUserDeposited(user));
     }
 }
