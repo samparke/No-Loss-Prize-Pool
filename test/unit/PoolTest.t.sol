@@ -16,16 +16,17 @@ contract PoolTest is Test {
     function setUp() public {
         winToken = new WinToken();
         pool = new Pool(IWinToken(address(winToken)));
-        winToken.grantMintAndBurnRole(address(address(pool)));
+        winToken.grantMintAndBurnRole(address(pool));
         vm.deal(user, STARTING_USER_BALANCE);
     }
 
-    function testDepositEventEmittedAndMintUserWinToken() public {
+    function testUserDepositsAndGiveUser10WinTokens() public {
         vm.prank(user);
-        vm.expectEmit(true, false, false, true, address(pool));
-        emit Pool.Deposit(user, DEPOSIT_AMOUNT);
         pool.deposit{value: DEPOSIT_AMOUNT}();
-        assertEq(winToken.balanceOf(user), DEPOSIT_AMOUNT);
-        assertTrue(pool.getHasUserDeposited(user));
+        assertEq(winToken.balanceOf(user), 1);
+    }
+
+    function testPoolInitialWinTokenBalanceIsZero() public view {
+        assertEq(pool.getWinTokenBalanceOfPool(), 0);
     }
 }

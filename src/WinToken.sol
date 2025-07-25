@@ -11,6 +11,7 @@ contract WinToken is ERC20, AccessControl, Ownable, ERC20Burnable {
     error WinToken__BalanceMustExceedBurnAmount();
 
     bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
+    uint256 private constant ETH_TO_WIN_SCALE = 1e18;
 
     modifier moreThanZero(uint256 _amount) {
         if (_amount == 0) {
@@ -33,7 +34,7 @@ contract WinToken is ERC20, AccessControl, Ownable, ERC20Burnable {
         onlyRole(MINT_AND_BURN_ROLE)
         returns (bool)
     {
-        _mint(_user, _amount);
+        _mint(_user, (_amount / ETH_TO_WIN_SCALE));
         return true;
     }
 
