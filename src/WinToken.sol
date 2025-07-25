@@ -9,6 +9,8 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 contract WinToken is ERC20, AccessControl, Ownable, ERC20Burnable {
     error WinToken__MustBeMoreThanZero();
     error WinToken__BalanceMustExceedBurnAmount();
+    error WinToken__TransferWinTokensBackFailed();
+    error WinToken__UserHasNoWinTokens();
 
     bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
     uint256 private constant ETH_TO_WIN_SCALE = 1e18;
@@ -44,6 +46,28 @@ contract WinToken is ERC20, AccessControl, Ownable, ERC20Burnable {
             revert WinToken__BalanceMustExceedBurnAmount();
         }
         super.burn(_amount);
+    }
+
+    function returnAllUserTokens(address _user) external returns (bool) {
+        if (balanceOf(_user) == 0) {
+            revert WinToken__UserHasNoWinTokens();
+        }
+        bool success = transferFrom(_user, address(this), balanceOf(msg.sender));
+        if (!success) {
+            revert WinToken__TransferWinTokensBackFailed();
+        }
+        return success;
+    }
+
+    function returnUserTokens(address _user, uint256 _amount) external returns (bool) {
+        if (balanceOf(_user) == 0) {
+            revert WinToken__UserHasNoWinTokens();
+        }
+        bool success = transferFrom(_user, address(this), (_amount / ETH_TO_WIN_SCALE));
+        if (!success) {
+            revert WinToken__TransferWinTokensBackFailed();
+        }
+        return success;
     }
 
     function hasMintAndBurnRole(address _account) public view returns (bool) {

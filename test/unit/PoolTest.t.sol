@@ -42,7 +42,7 @@ contract PoolTest is Test {
         vm.prank(user);
         // considering we are accruing interest linearly, and we are deposited double the previous test (which returned 50000000000 WEI)
         // this should return (50000000000 * 2)
-        pool.deposit{value: 2 ether}();
+        pool.deposit{value: (DEPOSIT_AMOUNT * 2)}();
         vm.warp(block.timestamp + 30 days);
         uint256 poolBalance = pool.getPoolBalance();
         // 50000000000 WEI / 0.00000005 ETH > 0 ETH
