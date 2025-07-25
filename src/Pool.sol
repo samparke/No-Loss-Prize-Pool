@@ -77,7 +77,6 @@ contract Pool is AccessControl, Ownable {
         uint256 interestToMint = (totalDeposits * s_interestRate * timeElapsed) / PRECISION_FACTOR;
         poolBalance += interestToMint;
         lastAccrued = block.timestamp;
-        i_winToken.mint(address(this), (interestToMint));
     }
 
     // getters
@@ -91,7 +90,7 @@ contract Pool is AccessControl, Ownable {
         return false;
     }
 
-    function getWinTokenBalanceOfPool() external view returns (uint256) {
-        return i_winToken.balanceOf(address(this));
+    function getPoolBalance() external view returns (uint256) {
+        return poolBalance;
     }
 }
