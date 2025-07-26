@@ -48,4 +48,72 @@ contract PoolTest is Test {
         // 50000000000 WEI / 0.00000005 ETH > 0 ETH
         assertEq(poolBalance, (50000000000 * 2));
     }
+
+    // withdraw
+
+    function testWithdrawStakeStraightAway() public {
+        vm.startPrank(user);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        assertEq(address(user).balance, 9 ether);
+        // approve the pool contract to return the win tokens back to win token contract
+        winToken.approve(address(pool), winToken.balanceOf(user));
+        pool.withdraw(DEPOSIT_AMOUNT);
+        assertEq(address(user).balance, 10 ether);
+        vm.stopPrank();
+    }
+
+    function testWithdrawAndUserNoLongerParticipantStraightAway() public {
+        vm.startPrank(user);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        assertTrue(pool.getIsUserParticipant(user));
+        winToken.approve(address(pool), winToken.balanceOf(user));
+        pool.withdraw(DEPOSIT_AMOUNT);
+        assertFalse(pool.getIsUserParticipant(user));
+        vm.stopPrank();
+    }
+
+    function testWithdrawAndUserNoLongerParticipantAfterManyDifferentUserDeposits() public {
+        address user2 = makeAddr("user2");
+        address user3 = makeAddr("user3");
+        vm.deal(user2, 1 ether);
+        vm.deal(user3, 1 ether);
+
+        vm.startPrank(user);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        winToken.approve(address(pool), winToken.balanceOf(user));
+        vm.stopPrank();
+        assertTrue(pool.getIsUserParticipant(user));
+
+        vm.startPrank(user2);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        winToken.approve(address(pool), winToken.balanceOf(user2));
+        vm.stopPrank();
+        assertTrue(pool.getIsUserParticipant(user2));
+
+        vm.startPrank(user3);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        winToken.approve(address(pool), winToken.balanceOf(user3));
+        vm.stopPrank();
+        assertTrue(pool.getIsUserParticipant(user3));
+
+        // the user is no longer first in the index array
+        vm.prank(user);
+        pool.withdraw(DEPOSIT_AMOUNT);
+        assertFalse(pool.getIsUserParticipant(user));
+    }
+
+    function testWithdrawIfNotDepositedRevert() public {
+        vm.prank(user);
+        vm.expectRevert(Pool.Pool__ParticipantIsNotInList.selector);
+        pool.withdraw(DEPOSIT_AMOUNT);
+    }
+
+    function testUserAttemptsToWithdrawMoreThanDeposited() public {
+        vm.startPrank(user);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        winToken.approve(address(pool), winToken.balanceOf(user));
+        vm.expectRevert(Pool.Pool__CanOnlyWithdrawDepositedAmountOrLess.selector);
+        pool.withdraw(DEPOSIT_AMOUNT + 1);
+        vm.stopPrank();
+    }
 }

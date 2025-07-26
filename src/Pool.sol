@@ -9,6 +9,7 @@ contract Pool is AccessControl {
     error Pool__MustSendEth();
     error Pool__CanOnlyWithdrawDepositedAmountOrLess();
     error Pool__ParticipantIsNotInList();
+    error Pool_WithdrawTransferBackToUserFail();
 
     IWinToken private immutable i_winToken;
     // the total deposits for everyone
@@ -73,6 +74,10 @@ contract Pool is AccessControl {
         s_amountUserDeposited[msg.sender] -= ethToWithdraw;
         s_totalDeposits -= ethToWithdraw;
         i_winToken.returnUserTokens(msg.sender, ethToWithdraw);
+        (bool success,) = payable(msg.sender).call{value: ethToWithdraw}("");
+        if (!success) {
+            revert Pool_WithdrawTransferBackToUserFail();
+        }
     }
 
     // interest
@@ -108,9 +113,6 @@ contract Pool is AccessControl {
     }
 
     function _removeParticipant(address _user) internal {
-        if (!s_isParticipant[_user]) {
-            revert Pool__ParticipantIsNotInList();
-        }
         uint256 index = s_indexOfUser[_user];
         uint256 lastIndexInList = s_participants.length - 1;
 
@@ -131,13 +133,8 @@ contract Pool is AccessControl {
      * @notice gets whether the user has deposited (if they are in the deposited list)
      * @param _user the user we want to see if they've deposited
      */
-    function getHasUserDeposited(address _user) external view returns (bool) {
-        for (uint256 i = 0; i < s_participants.length; i++) {
-            if (s_participants[i] == _user) {
-                return true;
-            }
-        }
-        return false;
+    function getIsUserParticipant(address _user) external view returns (bool) {
+        return s_isParticipant[_user];
     }
 
     /**

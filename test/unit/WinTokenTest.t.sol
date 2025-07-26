@@ -45,4 +45,16 @@ contract WinTokenTest is Test {
         vm.expectRevert(WinToken.WinToken__BalanceMustExceedBurnAmount.selector);
         winToken.burn(1 ether);
     }
+
+    // return tokens
+
+    function testReturnAllUserTokensIfUserHasNoneRevert() public {
+        vm.expectRevert(WinToken.WinToken__UserHasNoWinTokens.selector);
+        winToken.returnAllUserTokens(user);
+    }
+
+    function testReturnUserTokensIfUserHasNoneRevert() public {
+        vm.expectRevert(WinToken.WinToken__UserHasNoWinTokens.selector);
+        winToken.returnUserTokens(user, 1);
+    }
 }
