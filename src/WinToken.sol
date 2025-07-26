@@ -13,7 +13,7 @@ contract WinToken is ERC20, AccessControl, Ownable, ERC20Burnable {
     error WinToken__UserHasNoWinTokens();
 
     bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
-    uint256 private constant ETH_TO_WIN_SCALE = 1e18;
+    // uint256 private constant ETH_TO_WIN_SCALE = 1e18;
 
     modifier moreThanZero(uint256 _amount) {
         if (_amount == 0) {
@@ -36,7 +36,7 @@ contract WinToken is ERC20, AccessControl, Ownable, ERC20Burnable {
         onlyRole(MINT_AND_BURN_ROLE)
         returns (bool)
     {
-        _mint(_user, (_amount / ETH_TO_WIN_SCALE));
+        _mint(_user, _amount);
         return true;
     }
 
@@ -63,7 +63,7 @@ contract WinToken is ERC20, AccessControl, Ownable, ERC20Burnable {
         if (balanceOf(_user) == 0) {
             revert WinToken__UserHasNoWinTokens();
         }
-        bool success = transferFrom(_user, address(this), (_amount / ETH_TO_WIN_SCALE));
+        bool success = transferFrom(_user, address(this), _amount);
         if (!success) {
             revert WinToken__TransferWinTokensBackFailed();
         }

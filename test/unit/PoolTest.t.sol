@@ -24,7 +24,7 @@ contract PoolTest is Test {
     function testUserDepositsAndGiveUser10WinTokens() public {
         vm.prank(user);
         pool.deposit{value: DEPOSIT_AMOUNT}();
-        assertEq(winToken.balanceOf(user), 1);
+        assertEq(winToken.balanceOf(user), 1 ether);
     }
 
     function testUserDeposits1ETHAndPoolBalanceIncreasesAfter30Days() public {
@@ -34,7 +34,6 @@ contract PoolTest is Test {
         pool.deposit{value: DEPOSIT_AMOUNT}();
         vm.warp(block.timestamp + 30 days);
         uint256 futurePoolBalance = pool.getPoolBalance();
-        // 50000000000 WEI / 0.00000005 ETH > 0 ETH
         assertGt(futurePoolBalance, initialPoolBalance);
     }
 
@@ -42,7 +41,7 @@ contract PoolTest is Test {
         vm.prank(user);
         // considering we are accruing interest linearly, and we are deposited double the previous test (which returned 50000000000 WEI)
         // this should return (50000000000 * 2)
-        pool.deposit{value: (DEPOSIT_AMOUNT * 2)}();
+        pool.deposit{value: DEPOSIT_AMOUNT * 2}();
         vm.warp(block.timestamp + 30 days);
         uint256 poolBalance = pool.getPoolBalance();
         // 50000000000 WEI / 0.00000005 ETH > 0 ETH
@@ -114,6 +113,30 @@ contract PoolTest is Test {
         winToken.approve(address(pool), winToken.balanceOf(user));
         vm.expectRevert(Pool.Pool__CanOnlyWithdrawDepositedAmountOrLess.selector);
         pool.withdraw(DEPOSIT_AMOUNT + 1);
+        vm.stopPrank();
+    }
+
+    function testUserDepositsAndWithdrawsTotalDepositAndHasNoWinTokensLeft() public {
+        vm.startPrank(user);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        uint256 userWinBalance = winToken.balanceOf(user);
+        assertEq(userWinBalance, DEPOSIT_AMOUNT);
+        winToken.approve(address(pool), winToken.balanceOf(user));
+        pool.withdraw(DEPOSIT_AMOUNT);
+        uint256 userWinBalanceAfterWithdraw = winToken.balanceOf(user);
+        assertEq(userWinBalanceAfterWithdraw, 0);
+        vm.stopPrank();
+    }
+
+    function testUserDepositsAndWithdrawsHalfDepositAndHasHalfWinTokensLeft() public {
+        vm.startPrank(user);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        uint256 userWinBalance = winToken.balanceOf(user);
+        assertEq(userWinBalance, DEPOSIT_AMOUNT);
+        winToken.approve(address(pool), winToken.balanceOf(user));
+        pool.withdraw(DEPOSIT_AMOUNT / 2);
+        uint256 userWinBalanceAfterWithdraw = winToken.balanceOf(user);
+        assertEq(userWinBalanceAfterWithdraw, DEPOSIT_AMOUNT / 2);
         vm.stopPrank();
     }
 }

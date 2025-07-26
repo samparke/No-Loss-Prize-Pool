@@ -8,7 +8,6 @@ import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 contract WinTokenTest is Test {
     WinToken winToken;
     address user = makeAddr("user");
-    uint256 private constant ETH_TO_WIN_SCALE = 1e17;
 
     function setUp() public {
         winToken = new WinToken();
@@ -25,7 +24,7 @@ contract WinTokenTest is Test {
 
     function testUserMints1EthAndReceives1Win() public {
         winToken.mint(user, 1 ether);
-        assertEq(winToken.balanceOf(user), 1);
+        assertEq(winToken.balanceOf(user), 1 ether);
     }
 
     function testUserDoesNotHaveMintRole() public {

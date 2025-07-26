@@ -60,6 +60,10 @@ contract Pool is AccessControl {
         emit Deposit(msg.sender, msg.value);
     }
 
+    /**
+     * @notice this function enables users to withdraw the eth they deposited, and return the win tokens, removing them from the pool
+     * @param ethToWithdraw the amount of eth to withdraw from the users deposited amount. The amount of win tokens transfered back depends on the withdraw amount
+     */
     function withdraw(uint256 ethToWithdraw) external {
         if (!s_isParticipant[msg.sender]) {
             revert Pool__ParticipantIsNotInList();
