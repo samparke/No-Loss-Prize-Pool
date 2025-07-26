@@ -31,7 +31,7 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
 
     //chainlink state variables
     mapping(uint256 => RequestStatus) public s_requests;
-    uint256 s_subscriptionId;
+    uint256 s_subscriptionId = 20151455610035699335285754041510596714833706118432820466165758446716046642275;
     uint256[] public requestIds;
     uint256 public lastRequestId;
     bytes32 public keyHash = 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae;
@@ -59,12 +59,10 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
     error Pool__ParticipantIsNotInList();
     error Pool_WithdrawTransferBackToUserFail();
 
-    constructor(IWinToken _i_winToken, uint256 subscriptionId)
-        VRFConsumerBaseV2Plus(0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B)
-    {
+    constructor(IWinToken _i_winToken) VRFConsumerBaseV2Plus(0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B) {
         i_winToken = _i_winToken;
         s_totalDeposits = 0;
-        s_subscriptionId = subscriptionId;
+        s_subscriptionId = s_subscriptionId;
     }
 
     // chainlink functions
