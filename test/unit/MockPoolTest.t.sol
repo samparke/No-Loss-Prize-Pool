@@ -16,6 +16,8 @@ contract MockPoolTest is Test {
     int256 weiPerUnitLink = 4923000000000000;
 
     address user = makeAddr("user");
+    address user2 = makeAddr("user2");
+    address user3 = makeAddr("user3");
     uint256 public constant DEPOSIT_AMOUNT = 1 ether;
     uint256 STARTING_USER_BALANCE = 10 ether;
 
@@ -29,14 +31,71 @@ contract MockPoolTest is Test {
 
         token.grantMintAndBurnRole(address(pool));
         vm.deal(user, STARTING_USER_BALANCE);
+        vm.deal(user2, STARTING_USER_BALANCE);
+        vm.deal(user3, STARTING_USER_BALANCE);
         vm.deal(address(pool), 1000 ether);
     }
 
-    function testRequestRandomWords() public {
+    function testRandomWordsAndSelectWinnerFromOneEntrant() public {
+        vm.prank(user);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        pool.requestRandomWords();
+        uint256 requestId = pool.s_requestId();
+        assertEq(requestId, 1);
+        vm.expectEmit(true, false, false, false);
+        emit MockPool.WinnerSelected(address(user));
+        vrfMock.fulfillRandomWords(requestId, address(pool));
+
+        // we requested 1 number of words
+        assertEq(pool.getRandomWordsArrayLength(), 1);
+        uint256 randomWord = pool.s_randomWords(0);
+        assertGt(randomWord, 0);
+    }
+
+    // the test alwyas returns the same random number (78541660797044910968829902406342334108369226379826116161446442989268089806461)
+    // and when modulo, it alwyas returns 1442989268089806461 - which falls on user 2 every time
+    function testRandomWordsAndSelectWinnerOutOfManyEntrantsOfEqualDeposits() public {
+        vm.prank(user);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        vm.prank(user2);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        vm.prank(user3);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
         pool.requestRandomWords();
         uint256 requestId = pool.s_requestId();
         assertEq(requestId, 1);
         vrfMock.fulfillRandomWords(requestId, address(pool));
+        vm.expectEmit(true, false, false, false);
+        emit MockPool.WinnerSelected(address(user2));
+        pool.selectWinner();
+        // console.log("modelo random word", pool.s_randomWords(0) % token.totalSupply());
+
+        // we requested 1 number of words
+        assertEq(pool.getRandomWordsArrayLength(), 1);
+        uint256 randomWord = pool.s_randomWords(0);
+        assertGt(randomWord, 0);
+    }
+
+    function testRandomWordsAndSelectWinnerOutOfManyEntrantsOfRandomDeposits(uint256 depositAmount) public {
+        // users depositing different amounts
+        uint256 depositAmount1 = bound(depositAmount, 1e5, 1e20);
+        // uint256 depositAmount2 = bound(depositAmount, 1e5, 1e20);
+        // uint256 depositAmount3 = bound(depositAmount, 1e5, 1e20);
+        vm.deal(user, depositAmount1);
+        // vm.deal(user2, depositAmount2);
+        // vm.deal(user3, depositAmount3);
+        vm.prank(user);
+        pool.deposit{value: depositAmount1}();
+        // vm.prank(user2);
+        // pool.deposit{value: depositAmount2}();
+        // vm.prank(user3);
+        // pool.deposit{value: depositAmount3}();
+
+        pool.requestRandomWords();
+        uint256 requestId = pool.s_requestId();
+        assertEq(requestId, 1);
+        vrfMock.fulfillRandomWords(requestId, address(pool));
+        // console.log("modelo random word", pool.s_randomWords(0) % token.totalSupply());
 
         // we requested 1 number of words
         assertEq(pool.getRandomWordsArrayLength(), 1);
@@ -95,8 +154,6 @@ contract MockPoolTest is Test {
     }
 
     function testWithdrawAndUserNoLongerParticipantAfterManyDifferentUserDeposits() public {
-        address user2 = makeAddr("user2");
-        address user3 = makeAddr("user3");
         vm.deal(user2, 1 ether);
         vm.deal(user3, 1 ether);
 

@@ -201,7 +201,7 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
                 break;
             }
         }
-        if (winner != address(0)) {
+        if (winner == address(0)) {
             revert Pool__WinnerNotFound();
         }
         emit WinnerSelected(winner);

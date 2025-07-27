@@ -27,17 +27,24 @@ contract MockPool is VRFConsumerBaseV2Plus, AccessControl {
 
     uint256[] public s_randomWords;
     uint256 public s_requestId;
+    address public s_winner;
 
-    event ReturnedRandomness(uint256[] randomWords);
     event Deposit(address indexed user, uint256 amount);
     event InterestRateChange(uint256 newInterestRate);
-    event WinnerSelected(address winner);
+    event RequestSent(uint256 requestId, uint32 numWords);
+    event RequestFulfilled(uint256 requestId, uint256[] randomWords);
+    event WinnerSelected(address indexed winner);
+    event WinnerPaid(address indexed winner, uint256 prize, bool wasSuccessful);
+    event ReturnedRandomness(uint256[] randomWords);
 
     error Pool__MustSendEth();
     error Pool__CanOnlyWithdrawDepositedAmountOrLess();
     error Pool__ParticipantIsNotInList();
     error Pool_WithdrawTransferBackToUserFail();
     error Pool__WinnerNotFound();
+    error Pool_WinnerPrizeTransferFailed();
+    error Pool__RandomNumberNotFound();
+    error Pool__NoRandomnessYet();
 
     constructor(IWinToken _i_winToken, uint256 subscriptionId, address vrfCoordinator)
         VRFConsumerBaseV2Plus(vrfCoordinator)
@@ -64,24 +71,6 @@ contract MockPool is VRFConsumerBaseV2Plus, AccessControl {
     function fulfillRandomWords(uint256, /* requestId */ uint256[] calldata randomWords) internal override {
         s_randomWords = randomWords;
         emit ReturnedRandomness(randomWords);
-
-        uint256 totalTickets = i_winToken.totalSupply() / PRECISION_FACTOR;
-        uint256 randomTicket = s_randomWords[0] % totalTickets;
-        uint256 cumulativeTicketAmount = 0;
-        address winner;
-        for (uint256 i = 0; i < s_participants.length; i++) {
-            address user = s_participants[i];
-            uint256 tickets = (i_winToken.balanceOf(s_participants[i]) / PRECISION_FACTOR);
-            cumulativeTicketAmount += tickets;
-            if (randomTicket < cumulativeTicketAmount) {
-                winner = user;
-                break;
-            }
-        }
-        if (winner != address(0)) {
-            revert Pool__WinnerNotFound();
-        }
-        emit WinnerSelected(winner);
     }
 
     receive() external payable {}
@@ -152,7 +141,41 @@ contract MockPool is VRFConsumerBaseV2Plus, AccessControl {
         s_isParticipant[_user] = false;
     }
 
-    function _payWinner() internal {}
+    // MUST ASSIGN ROLE
+    function selectWinner() public {
+        if (s_randomWords.length == 0) {
+            revert Pool__NoRandomnessYet();
+        }
+        uint256 randomWord = getRandomWord();
+        uint256 totalTickets = i_winToken.totalSupply();
+        uint256 randomTicket = randomWord % totalTickets;
+        uint256 cumulativeTicketAmount = 0;
+        for (uint256 i = 0; i < s_participants.length; i++) {
+            address user = s_participants[i];
+            uint256 tickets = (i_winToken.balanceOf(s_participants[i]));
+            cumulativeTicketAmount += tickets;
+            if (randomTicket < cumulativeTicketAmount) {
+                s_winner = user;
+                break;
+            }
+        }
+        if (s_winner == address(0)) {
+            revert Pool__WinnerNotFound();
+        }
+        emit WinnerSelected(s_winner);
+        _payWinnerPrize(s_winner);
+    }
+
+    function _payWinnerPrize(address _winner) internal {
+        delete s_winner;
+        uint256 prize = s_poolBalance;
+        s_poolBalance = 0;
+        (bool success,) = payable(_winner).call{value: prize}("");
+        if (!success) {
+            revert Pool_WinnerPrizeTransferFailed();
+        }
+        emit WinnerPaid(_winner, prize, success);
+    }
 
     function getIsUserParticipant(address _user) external view returns (bool) {
         return s_isParticipant[_user];
@@ -164,5 +187,9 @@ contract MockPool is VRFConsumerBaseV2Plus, AccessControl {
 
     function getRandomWordsArrayLength() external view returns (uint256) {
         return s_randomWords.length;
+    }
+
+    function getRandomWord() public view returns (uint256) {
+        return s_randomWords[0];
     }
 }
