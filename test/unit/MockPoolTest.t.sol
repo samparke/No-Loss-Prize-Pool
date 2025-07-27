@@ -76,26 +76,34 @@ contract MockPoolTest is Test {
         assertGt(randomWord, 0);
     }
 
-    function testRandomWordsAndSelectWinnerOutOfManyEntrantsOfRandomDeposits(uint256 depositAmount) public {
+    function testRandomWordsAndSelectWinnerOutOfManyEntrantsOfRandomDeposits(
+        uint256 depositAmount,
+        uint256 depositAmount2,
+        uint256 depositAmount3
+    ) public {
         // users depositing different amounts
-        uint256 depositAmount1 = bound(depositAmount, 1e5, 1e20);
-        // uint256 depositAmount2 = bound(depositAmount, 1e5, 1e20);
-        // uint256 depositAmount3 = bound(depositAmount, 1e5, 1e20);
-        vm.deal(user, depositAmount1);
-        // vm.deal(user2, depositAmount2);
-        // vm.deal(user3, depositAmount3);
+        depositAmount = bound(depositAmount, 1e5, type(uint96).max);
+        depositAmount2 = bound(depositAmount2, 1e5, type(uint96).max);
+        depositAmount3 = bound(depositAmount3, 1e5, type(uint96).max);
+        vm.deal(user, depositAmount);
+        vm.deal(user2, depositAmount2);
+        vm.deal(user3, depositAmount3);
         vm.prank(user);
-        pool.deposit{value: depositAmount1}();
-        // vm.prank(user2);
-        // pool.deposit{value: depositAmount2}();
-        // vm.prank(user3);
-        // pool.deposit{value: depositAmount3}();
+        pool.deposit{value: depositAmount}();
+        vm.prank(user2);
+        pool.deposit{value: depositAmount2}();
+        vm.prank(user3);
+        pool.deposit{value: depositAmount3}();
 
         pool.requestRandomWords();
         uint256 requestId = pool.s_requestId();
         assertEq(requestId, 1);
         vrfMock.fulfillRandomWords(requestId, address(pool));
-        // console.log("modelo random word", pool.s_randomWords(0) % token.totalSupply());
+
+        // simply test the event emits. we get a different winner each time, so cannot expect hardcode a certain address
+        vm.expectEmit(false, false, false, false);
+        emit MockPool.WinnerSelected(address(0));
+        pool.selectWinner();
 
         // we requested 1 number of words
         assertEq(pool.getRandomWordsArrayLength(), 1);
