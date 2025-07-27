@@ -38,6 +38,7 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
     uint32 public callbackGasLimit = 100000;
     uint16 public requestConfirmations = 3;
     uint32 public numWords = 1;
+    address public s_winner;
 
     //structs
 
@@ -62,6 +63,7 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
     error Pool_WithdrawTransferBackToUserFail();
     error Pool__WinnerNotFound();
     error Pool_WinnerPrizeTransferFailed();
+    error Pool__NoRandomnessYet();
 
     constructor(IWinToken _i_winToken) VRFConsumerBaseV2Plus(0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B) {
         i_winToken = _i_winToken;
@@ -103,7 +105,6 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
         s_requests[_requestId].fulfilled = true;
         s_requests[_requestId].randomWords = _randomWords;
         emit RequestFulfilled(_requestId, _randomWords);
-        _selectWinner(_randomWords[0]);
     }
 
     function getRequestStatus(uint256 _requestId)
@@ -181,31 +182,33 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
 
     /**
      * @notice selects the winner from our entrants
-     * @param _randomWord the random number which we received from chainlink
      * @dev users who deposit more recieve more WIN tokens. We need to give these users a greater chance of winning.
      * the randomTicket selects a random ticket point from the total tickets
      * we add each users balance to cumulative tickets amount, and then test whether the users tickets (at the point of adding to the cumumlativeTicketAmount)
      * is above that random ticket point. If so, they win.
      */
-    function _selectWinner(uint256 _randomWord) internal {
+    function selectWinner() public {
+        if (!s_requests[lastRequestId].fulfilled) {
+            revert Pool__NoRandomnessYet();
+        }
+        uint256 randomWord = getRandomWord();
         uint256 totalTickets = i_winToken.totalSupply();
-        uint256 randomTicket = _randomWord % totalTickets;
+        uint256 randomTicket = randomWord % totalTickets;
         uint256 cumulativeTicketAmount = 0;
-        address winner;
         for (uint256 i = 0; i < s_participants.length; i++) {
             address user = s_participants[i];
             uint256 tickets = (i_winToken.balanceOf(s_participants[i]));
             cumulativeTicketAmount += tickets;
             if (randomTicket < cumulativeTicketAmount) {
-                winner = user;
+                s_winner = user;
                 break;
             }
         }
-        if (winner == address(0)) {
+        if (s_winner == address(0)) {
             revert Pool__WinnerNotFound();
         }
-        emit WinnerSelected(winner);
-        _payWinnerPrize(winner);
+        emit WinnerSelected(s_winner);
+        _payWinnerPrize(s_winner);
     }
 
     /**
@@ -213,6 +216,7 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
      * @param _winner the winner address to pay the prize to
      */
     function _payWinnerPrize(address _winner) internal {
+        delete s_winner;
         uint256 prize = s_poolBalance;
         s_poolBalance = 0;
         (bool success,) = payable(_winner).call{value: prize}("");
@@ -263,5 +267,10 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
 
         delete s_indexOfUser[_user];
         s_isParticipant[_user] = false;
+    }
+
+    function getRandomWord() public view returns (uint256) {
+        uint256[] memory randomWordsList = s_requests[lastRequestId].randomWords;
+        return randomWordsList[randomWordsList.length - 1];
     }
 }
