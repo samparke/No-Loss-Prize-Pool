@@ -42,9 +42,10 @@ contract MockPoolTest is Test {
         pool.requestRandomWords();
         uint256 requestId = pool.s_requestId();
         assertEq(requestId, 1);
+        vrfMock.fulfillRandomWords(requestId, address(pool));
         vm.expectEmit(true, false, false, false);
         emit MockPool.WinnerSelected(address(user));
-        vrfMock.fulfillRandomWords(requestId, address(pool));
+        pool.selectWinner();
 
         // we requested 1 number of words
         assertEq(pool.getRandomWordsArrayLength(), 1);
