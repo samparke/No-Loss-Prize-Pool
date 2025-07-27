@@ -11,9 +11,9 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
     // the total deposits for everyone
     uint256 public s_totalDeposits;
     // the accumulated interest to be won
-    uint256 s_poolBalance;
+    uint256 public s_poolBalance;
     // last time the contract accrued interest to balance
-    uint256 s_lastAccrued;
+    uint256 public s_lastAccrued;
     // this is each users deposits + interest accrued
     mapping(address user => uint256 amountDeposited) private s_amountUserDeposited;
     // bool to whether user is in the participant list
@@ -52,12 +52,16 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
     event InterestRateChange(uint256 newInterestRate);
     event RequestSent(uint256 requestId, uint32 numWords);
     event RequestFulfilled(uint256 requestId, uint256[] randomWords);
+    event WinnerSelected(address indexed winner);
+    event WinnerPaid(address indexed winner, uint256 prize, bool wasSuccessful);
 
     // errors
     error Pool__MustSendEth();
     error Pool__CanOnlyWithdrawDepositedAmountOrLess();
     error Pool__ParticipantIsNotInList();
     error Pool_WithdrawTransferBackToUserFail();
+    error Pool__WinnerNotFound();
+    error Pool_WinnerPrizeTransferFailed();
 
     constructor(IWinToken _i_winToken) VRFConsumerBaseV2Plus(0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B) {
         i_winToken = _i_winToken;
@@ -67,6 +71,9 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
 
     // chainlink functions
 
+    /**
+     * @notice our call to get a random number
+     */
     function requestRandomWords() external onlyOwner returns (uint256 requestId) {
         requestId = s_vrfCoordinator.requestRandomWords(
             VRFV2PlusClient.RandomWordsRequest({
@@ -85,11 +92,18 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
         return requestId;
     }
 
+    /**
+     * @notice this is the function for chainlink vrf to pass the random number through. It additionally calls our internal
+     * _select winner function
+     * @param _requestId the request Id for the random number to be assigned to
+     * @param _randomWords the random word (number) the chainlink vrf inputs
+     */
     function fulfillRandomWords(uint256 _requestId, uint256[] calldata _randomWords) internal override {
         require(s_requests[_requestId].exists, "request not found");
         s_requests[_requestId].fulfilled = true;
         s_requests[_requestId].randomWords = _randomWords;
         emit RequestFulfilled(_requestId, _randomWords);
+        _selectWinner(_randomWords[0]);
     }
 
     function getRequestStatus(uint256 _requestId)
@@ -144,7 +158,69 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
         }
     }
 
-    // interest
+    // getters
+
+    /**
+     * @notice gets whether the user has deposited (if they are in the deposited list)
+     * @param _user the user we want to see if they've deposited
+     */
+    function getIsUserParticipant(address _user) external view returns (bool) {
+        return s_isParticipant[_user];
+    }
+
+    /**
+     * @return returns the pools balance from interest
+     * As the pool will contain ETH outside of the ETH gained from interest accrued, we are tracking balances via
+     * uint256 poolBalance, instead of address(this).balance
+     */
+    function getPoolBalance() external view returns (uint256) {
+        return s_poolBalance;
+    }
+
+    // internal functions
+
+    /**
+     * @notice selects the winner from our entrants
+     * @param _randomWord the random number which we received from chainlink
+     * @dev users who deposit more recieve more WIN tokens. We need to give these users a greater chance of winning.
+     * the randomTicket selects a random ticket point from the total tickets
+     * we add each users balance to cumulative tickets amount, and then test whether the users tickets (at the point of adding to the cumumlativeTicketAmount)
+     * is above that random ticket point. If so, they win.
+     */
+    function _selectWinner(uint256 _randomWord) internal {
+        uint256 totalTickets = i_winToken.totalSupply();
+        uint256 randomTicket = _randomWord % totalTickets;
+        uint256 cumulativeTicketAmount = 0;
+        address winner;
+        for (uint256 i = 0; i < s_participants.length; i++) {
+            address user = s_participants[i];
+            uint256 tickets = (i_winToken.balanceOf(s_participants[i]));
+            cumulativeTicketAmount += tickets;
+            if (randomTicket < cumulativeTicketAmount) {
+                winner = user;
+                break;
+            }
+        }
+        if (winner != address(0)) {
+            revert Pool__WinnerNotFound();
+        }
+        emit WinnerSelected(winner);
+        _payWinnerPrize(winner);
+    }
+
+    /**
+     * @notice this function pays the winner the eth from the pool balance
+     * @param _winner the winner address to pay the prize to
+     */
+    function _payWinnerPrize(address _winner) internal {
+        uint256 prize = s_poolBalance;
+        s_poolBalance = 0;
+        (bool success,) = payable(_winner).call{value: prize}("");
+        if (!success) {
+            revert Pool_WinnerPrizeTransferFailed();
+        }
+        emit WinnerPaid(_winner, prize, success);
+    }
 
     /**
      * @notice this function adds to accumulated interest since the last time this function was called
@@ -161,8 +237,6 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
         s_poolBalance += interestToMint;
         s_lastAccrued = block.timestamp;
     }
-
-    // list
 
     /**
      * @notice this is an internal function to push the user to the list, assigning them an index and true bool
@@ -189,24 +263,5 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
 
         delete s_indexOfUser[_user];
         s_isParticipant[_user] = false;
-    }
-
-    // getters
-
-    /**
-     * @notice gets whether the user has deposited (if they are in the deposited list)
-     * @param _user the user we want to see if they've deposited
-     */
-    function getIsUserParticipant(address _user) external view returns (bool) {
-        return s_isParticipant[_user];
-    }
-
-    /**
-     * @return returns the pools balance from interest
-     * As the pool will contain ETH outside of the ETH gained from interest accrued, we are tracking balances via
-     * uint256 poolBalance, instead of address(this).balance
-     */
-    function getPoolBalance() external view returns (uint256) {
-        return s_poolBalance;
     }
 }

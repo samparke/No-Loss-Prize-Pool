@@ -9,8 +9,8 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 contract MockPool is VRFConsumerBaseV2Plus, AccessControl {
     IWinToken private immutable i_winToken;
     uint256 public s_totalDeposits;
-    uint256 s_poolBalance;
-    uint256 s_lastAccrued;
+    uint256 public s_poolBalance;
+    uint256 public s_lastAccrued;
     mapping(address user => uint256 amountDeposited) private s_amountUserDeposited;
     mapping(address user => bool) private s_isParticipant;
     mapping(address user => uint256 index) private s_indexOfUser;
@@ -31,11 +31,13 @@ contract MockPool is VRFConsumerBaseV2Plus, AccessControl {
     event ReturnedRandomness(uint256[] randomWords);
     event Deposit(address indexed user, uint256 amount);
     event InterestRateChange(uint256 newInterestRate);
+    event WinnerSelected(address winner);
 
     error Pool__MustSendEth();
     error Pool__CanOnlyWithdrawDepositedAmountOrLess();
     error Pool__ParticipantIsNotInList();
     error Pool_WithdrawTransferBackToUserFail();
+    error Pool__WinnerNotFound();
 
     constructor(IWinToken _i_winToken, uint256 subscriptionId, address vrfCoordinator)
         VRFConsumerBaseV2Plus(vrfCoordinator)
@@ -46,7 +48,7 @@ contract MockPool is VRFConsumerBaseV2Plus, AccessControl {
         s_subscriptionId = subscriptionId;
     }
 
-    function requestRandomWords() external onlyOwner {
+    function requestRandomWords() public onlyOwner {
         s_requestId = s_vrfCoordinator.requestRandomWords(
             VRFV2PlusClient.RandomWordsRequest({
                 keyHash: s_keyHash,
@@ -62,6 +64,24 @@ contract MockPool is VRFConsumerBaseV2Plus, AccessControl {
     function fulfillRandomWords(uint256, /* requestId */ uint256[] calldata randomWords) internal override {
         s_randomWords = randomWords;
         emit ReturnedRandomness(randomWords);
+
+        uint256 totalTickets = i_winToken.totalSupply() / PRECISION_FACTOR;
+        uint256 randomTicket = s_randomWords[0] % totalTickets;
+        uint256 cumulativeTicketAmount = 0;
+        address winner;
+        for (uint256 i = 0; i < s_participants.length; i++) {
+            address user = s_participants[i];
+            uint256 tickets = (i_winToken.balanceOf(s_participants[i]) / PRECISION_FACTOR);
+            cumulativeTicketAmount += tickets;
+            if (randomTicket < cumulativeTicketAmount) {
+                winner = user;
+                break;
+            }
+        }
+        if (winner != address(0)) {
+            revert Pool__WinnerNotFound();
+        }
+        emit WinnerSelected(winner);
     }
 
     receive() external payable {}
@@ -131,6 +151,8 @@ contract MockPool is VRFConsumerBaseV2Plus, AccessControl {
         delete s_indexOfUser[_user];
         s_isParticipant[_user] = false;
     }
+
+    function _payWinner() internal {}
 
     function getIsUserParticipant(address _user) external view returns (bool) {
         return s_isParticipant[_user];
