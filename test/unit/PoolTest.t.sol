@@ -21,8 +21,12 @@ contract PoolTest is Test {
         vm.deal(address(pool), 1000 ether);
     }
 
+    // deposit
+
     function testUserDepositsAndGiveUser10WinTokens() public {
         vm.prank(user);
+        vm.expectEmit(true, false, false, false);
+        emit Pool.Deposit(address(user), DEPOSIT_AMOUNT);
         pool.deposit{value: DEPOSIT_AMOUNT}();
         assertEq(winToken.balanceOf(user), 1 ether);
     }
@@ -46,6 +50,12 @@ contract PoolTest is Test {
         uint256 poolBalance = pool.getPoolBalance();
         // 50000000000 WEI / 0.00000005 ETH > 0 ETH
         assertEq(poolBalance, (50000000000 * 2));
+    }
+
+    function testUserDepositsNoEth() public {
+        vm.prank(user);
+        vm.expectRevert(Pool.Pool__MustSendEth.selector);
+        pool.deposit{value: 0}();
     }
 
     // withdraw
@@ -116,6 +126,15 @@ contract PoolTest is Test {
         vm.stopPrank();
     }
 
+    function testUserRedeemsAndIsNoLongerInList() public {
+        vm.startPrank(user);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        winToken.approve(address(pool), winToken.balanceOf(user));
+        pool.withdraw(DEPOSIT_AMOUNT);
+        vm.stopPrank();
+        assertFalse(pool.getIsUserParticipant(user));
+    }
+
     function testUserDepositsAndWithdrawsTotalDepositAndHasNoWinTokensLeft() public {
         vm.startPrank(user);
         pool.deposit{value: DEPOSIT_AMOUNT}();
@@ -138,5 +157,12 @@ contract PoolTest is Test {
         uint256 userWinBalanceAfterWithdraw = winToken.balanceOf(user);
         assertEq(userWinBalanceAfterWithdraw, DEPOSIT_AMOUNT / 2);
         vm.stopPrank();
+    }
+
+    // random
+
+    function testRandomNumberNotYetFound() public {
+        vm.expectRevert(Pool.Pool__NoRandomnessYet.selector);
+        pool.selectWinner();
     }
 }

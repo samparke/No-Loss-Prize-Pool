@@ -107,16 +107,6 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
         emit RequestFulfilled(_requestId, _randomWords);
     }
 
-    function getRequestStatus(uint256 _requestId)
-        external
-        view
-        returns (bool fulfilled, uint256[] memory randomWords)
-    {
-        require(s_requests[_requestId].exists, "request not found");
-        RequestStatus memory request = s_requests[_requestId];
-        return (request.fulfilled, request.randomWords);
-    }
-
     receive() external payable {}
 
     /**
@@ -159,25 +149,6 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
         }
     }
 
-    // getters
-
-    /**
-     * @notice gets whether the user has deposited (if they are in the deposited list)
-     * @param _user the user we want to see if they've deposited
-     */
-    function getIsUserParticipant(address _user) external view returns (bool) {
-        return s_isParticipant[_user];
-    }
-
-    /**
-     * @return returns the pools balance from interest
-     * As the pool will contain ETH outside of the ETH gained from interest accrued, we are tracking balances via
-     * uint256 poolBalance, instead of address(this).balance
-     */
-    function getPoolBalance() external view returns (uint256) {
-        return s_poolBalance;
-    }
-
     // internal functions
 
     /**
@@ -187,11 +158,12 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
      * we add each users balance to cumulative tickets amount, and then test whether the users tickets (at the point of adding to the cumumlativeTicketAmount)
      * is above that random ticket point. If so, they win.
      */
-    function selectWinner() public {
+    function selectWinner() public onlyOwner {
         if (!s_requests[lastRequestId].fulfilled) {
             revert Pool__NoRandomnessYet();
         }
-        uint256 randomWord = getRandomWord();
+        (, uint256[] memory randomWords) = getRequestStatus(lastRequestId);
+        uint256 randomWord = randomWords[randomWords.length - 1];
         uint256 totalTickets = i_winToken.totalSupply();
         uint256 randomTicket = randomWord % totalTickets;
         uint256 cumulativeTicketAmount = 0;
@@ -269,8 +241,28 @@ contract Pool is AccessControl, VRFConsumerBaseV2Plus {
         s_isParticipant[_user] = false;
     }
 
-    function getRandomWord() public view returns (uint256) {
-        uint256[] memory randomWordsList = s_requests[lastRequestId].randomWords;
-        return randomWordsList[randomWordsList.length - 1];
+    // getters
+
+    function getRequestStatus(uint256 _requestId) public view returns (bool fulfilled, uint256[] memory randomWords) {
+        require(s_requests[_requestId].exists, "request not found");
+        RequestStatus memory request = s_requests[_requestId];
+        return (request.fulfilled, request.randomWords);
+    }
+
+    /**
+     * @notice gets whether the user has deposited (if they are in the deposited list)
+     * @param _user the user we want to see if they've deposited
+     */
+    function getIsUserParticipant(address _user) external view returns (bool) {
+        return s_isParticipant[_user];
+    }
+
+    /**
+     * @return returns the pools balance from interest
+     * As the pool will contain ETH outside of the ETH gained from interest accrued, we are tracking balances via
+     * uint256 poolBalance, instead of address(this).balance
+     */
+    function getPoolBalance() external view returns (uint256) {
+        return s_poolBalance;
     }
 }

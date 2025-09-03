@@ -36,6 +36,11 @@ contract MockPoolTest is Test {
         vm.deal(address(pool), 1000 ether);
     }
 
+    function testRandomNumberNotYetFound() public {
+        vm.expectRevert(MockPool.Pool__NoRandomnessYet.selector);
+        pool.selectWinner();
+    }
+
     function testRandomWordsAndSelectWinnerFromOneEntrant() public {
         vm.prank(user);
         pool.deposit{value: DEPOSIT_AMOUNT}();
@@ -227,5 +232,14 @@ contract MockPoolTest is Test {
         uint256 userWinBalanceAfterWithdraw = token.balanceOf(user);
         assertEq(userWinBalanceAfterWithdraw, DEPOSIT_AMOUNT / 2);
         vm.stopPrank();
+    }
+
+    function testUserRedeemsAndIsNoLongerInList() public {
+        vm.startPrank(user);
+        pool.deposit{value: DEPOSIT_AMOUNT}();
+        token.approve(address(pool), token.balanceOf(user));
+        pool.withdraw(DEPOSIT_AMOUNT);
+        vm.stopPrank();
+        assertFalse(pool.getIsUserParticipant(user));
     }
 }
